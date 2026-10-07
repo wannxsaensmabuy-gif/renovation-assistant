@@ -90,7 +90,14 @@ function feather(mask: Uint8Array, w: number, h: number): Float32Array {
  * Recolor: keeps the original light / shadow / texture by scaling the target colour with each
  * pixel's brightness relative to the area average (not a flat overlay).
  */
-export function recolor(data: Uint8ClampedArray, w: number, h: number, mask: Uint8Array, rgb: [number, number, number]) {
+export function recolor(
+  data: Uint8ClampedArray,
+  w: number,
+  h: number,
+  mask: Uint8Array,
+  rgb: [number, number, number],
+  finish: 'matt' | 'sheen' = 'matt'
+) {
   let sum = 0, n = 0;
   for (let i = 0; i < mask.length; i++) if (mask[i]) { const p = i * 4; sum += 0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2]; n++; }
   if (!n) return;
@@ -102,8 +109,12 @@ export function recolor(data: Uint8ClampedArray, w: number, h: number, mask: Uin
     const p = i * 4;
     const l = 0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2];
     let k = l / mean;
-    k = k <= 1 ? Math.max(0.12, k) : 1 + (k - 1) * 0.7;
+    k = k <= 1 ? Math.max(0.12, k) : 1 + (k - 1) * (finish === 'sheen' ? 0.82 : 0.68);
     let r = rgb[0] * k, g = rgb[1] * k, b = rgb[2] * k;
+    if (finish === 'sheen' && k > 1.12) {
+      const boost = (k - 1.12) * 24;
+      r += boost; g += boost; b += boost;
+    }
     data[p] = data[p] + (Math.min(255, r) - data[p]) * al;
     data[p + 1] = data[p + 1] + (Math.min(255, g) - data[p + 1]) * al;
     data[p + 2] = data[p + 2] + (Math.min(255, b) - data[p + 2]) * al;

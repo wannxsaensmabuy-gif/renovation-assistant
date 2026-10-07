@@ -1,6 +1,6 @@
 import { openDB, type DBSchema } from 'idb';
 
-export interface PaintArea { mask: ArrayBuffer; colorId: string }
+export interface PaintArea { mask: ArrayBuffer; colorId: string; finish?: 'matt' | 'sheen' }
 export interface PlacedItem { itemId: string; x: number; y: number; scaleX: number; scaleY: number; rotation: number }
 
 export interface Project {

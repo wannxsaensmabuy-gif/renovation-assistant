@@ -1,11 +1,11 @@
 import { h, back, go, replace, topBar, stepsBar, photoPicker, compareView, toast, busy, type Screen } from './ui';
-import { PALETTE, GROUPS, colorById } from './palette';
+import { PALETTE, GROUPS, ARCHITECTURAL_THEMES, colorById } from './palette';
 import { loadCanvas, toBlob } from './img';
 import { growFrom, paintDisc, recolor, emptyMask, maskCount, unionInto } from './engine';
 import { saveProject, uid, type Project, type PaintArea } from './db';
 import { summaryScreen } from './summary';
 
-interface Area { mask: Uint8Array; colorId: string }
+interface Area { mask: Uint8Array; colorId: string; finish?: 'matt' | 'sheen' }
 
 export function painterScreen(project?: Project): Screen {
   const root = h('div', { class: 'screen' });
@@ -19,13 +19,14 @@ export function painterScreen(project?: Project): Screen {
   let tol = 38; let brush = 14;
   let last: { x: number; y: number; before: Uint8Array } | null = null;
   let pendingColor: string | null = null;
+  let pendingFinish: 'matt' | 'sheen' = 'matt';
   let proj: Project | undefined = project;
   let sourceBlob: Blob | undefined = project?.source;
   let resultBlob: Blob | undefined = project?.result;
 
   const bake = (list: Area[]) => {
     const d = new ImageData(new Uint8ClampedArray(base.data), W, H);
-    for (const a of list) recolor(d.data, W, H, a.mask, colorById(a.colorId)!.rgb);
+    for (const a of list) recolor(d.data, W, H, a.mask, colorById(a.colorId)!.rgb, a.finish ?? 'matt');
     return d;
   };
 
@@ -311,45 +312,127 @@ export function painterScreen(project?: Project): Screen {
     }) as HTMLCanvasElement;
     cv.width = W; cv.height = H;
     const ctx = cv.getContext('2d')!;
+
+    let currentFinish: 'matt' | 'sheen' = pendingFinish;
+    let viewMode: 'themes' | 'palette' = 'themes';
+    let grp = (pendingColor && colorById(pendingColor)?.group) || GROUPS[0];
+
     const preview = () => {
-      const d = pendingColor ? (() => { const x = new ImageData(new Uint8ClampedArray(committed.data), W, H);
-        // recolor the new area relative to the ORIGINAL light, then paste over committed
+      const d = pendingColor ? (() => {
+        const x = new ImageData(new Uint8ClampedArray(committed.data), W, H);
         const o = new ImageData(new Uint8ClampedArray(base.data), W, H);
-        recolor(o.data, W, H, current, colorById(pendingColor!)!.rgb);
-        for (let i = 0; i < current.length; i++) if (current[i]) { const p = i * 4; x.data[p] = o.data[p]; x.data[p + 1] = o.data[p + 1]; x.data[p + 2] = o.data[p + 2]; }
-        return x; })() : committed;
+        recolor(o.data, W, H, current, colorById(pendingColor!)!.rgb, currentFinish);
+        for (let i = 0; i < current.length; i++) if (current[i]) {
+          const p = i * 4;
+          x.data[p] = o.data[p]; x.data[p + 1] = o.data[p + 1]; x.data[p + 2] = o.data[p + 2];
+        }
+        return x;
+      })() : committed;
       ctx.putImageData(d, 0, 0);
     };
+
     const again = h('button', { class: 'btn', onClick: () => { if (commit()) { current = emptyMask(W, H); undo = []; last = null; pendingColor = null; step = 2; render(); } } }, '➕ ทาอีกจุด') as HTMLButtonElement;
     const done = h('button', { class: 'btn primary', onClick: async () => { if (commit()) { await finish(); step = 4; render(); } } }, 'ดูผลลัพธ์ →') as HTMLButtonElement;
     const sync = () => { again.disabled = done.disabled = !pendingColor; };
-    let grp = (pendingColor && colorById(pendingColor)?.group) || GROUPS[0];
-    const grid = h('div', { class: 'palette' });
-    const tabs = h('div', { class: 'strip tabs' });
-    const showGrid = () => {
-      tabs.replaceChildren(...GROUPS.map((gname) => h('button', {
-        class: 'tab' + (gname === grp ? ' on' : ''), onClick: () => { grp = gname; showGrid(); },
-      }, gname)));
-      grid.replaceChildren(...PALETTE.filter((c) => c.group === grp).map((c) => h('button', {
-        class: 'swatch' + (pendingColor === c.id ? ' on' : ''),
-        onClick: () => { pendingColor = c.id; showGrid(); preview(); sync(); },
-      }, h('span', { class: 'chip', style: { background: c.css } }), h('span', { class: 'n' }, c.name))));
+
+    const pickerContainer = h('div', { class: 'content', style: { padding: '4px 16px 12px' } });
+
+    // Finish bar
+    const mattBtn = h('button', { class: 'finish-btn' + (currentFinish === 'matt' ? ' on' : ''), onClick: () => setFinish('matt') }, '⚪ ผิวด้านเรียบหรู');
+    const sheenBtn = h('button', { class: 'finish-btn' + (currentFinish === 'sheen' ? ' on' : ''), onClick: () => setFinish('sheen') }, '✨ กึ่งเงาซาติน');
+    const setFinish = (f: 'matt' | 'sheen') => {
+      currentFinish = pendingFinish = f;
+      mattBtn.classList.toggle('on', f === 'matt');
+      sheenBtn.classList.toggle('on', f === 'sheen');
+      preview();
     };
-    showGrid();
+    const finishBar = h('div', { class: 'finish-bar' },
+      h('span', {}, 'มิติผิวสี:'),
+      h('div', { class: 'finish-options' }, mattBtn, sheenBtn));
+
+    // Mode toggle: Themes vs All Palette
+    const themeTab = h('button', { class: 'on', onClick: () => setMode('themes') }, '🌟 สไตล์สถาปนิก');
+    const paletteTab = h('button', { onClick: () => setMode('palette') }, '🎨 สีทั้งหมด');
+    const modeToggle = h('div', { class: 'main-mode-toggle' }, themeTab, paletteTab);
+
+    const setMode = (m: 'themes' | 'palette') => {
+      viewMode = m;
+      themeTab.classList.toggle('on', m === 'themes');
+      paletteTab.classList.toggle('on', m === 'palette');
+      renderPicker();
+    };
+
+    const renderPicker = () => {
+      pickerContainer.replaceChildren();
+      if (viewMode === 'themes') {
+        const list = h('div', { class: 'themes-list' });
+        ARCHITECTURAL_THEMES.forEach((thm) => {
+          const hasSelectedColor = thm.slots.some((s) => s.colorId === pendingColor);
+          const slotsRow = h('div', { class: 'theme-slots' },
+            thm.slots.map((s) => {
+              const c = colorById(s.colorId)!;
+              const isSlotActive = pendingColor === s.colorId;
+              return h('div', {
+                class: 'theme-slot' + (isSlotActive ? ' on' : ''),
+                onClick: () => {
+                  pendingColor = s.colorId;
+                  renderPicker();
+                  preview();
+                  sync();
+                },
+              },
+                h('div', { class: 'chip', style: { background: c.css } }),
+                h('span', { class: 'role' }, s.role),
+                h('span', { class: 'cname' }, c.name));
+            }));
+
+          const card = h('div', { class: 'theme-card' + (hasSelectedColor ? ' on' : '') },
+            h('div', { class: 'theme-head' },
+              h('span', { class: 'ico' }, thm.icon),
+              h('b', {}, thm.name)),
+            h('p', { class: 'theme-desc' }, thm.desc),
+            slotsRow);
+          list.append(card);
+        });
+        pickerContainer.append(list);
+      } else {
+        const tabs = h('div', { class: 'strip tabs' });
+        const grid = h('div', { class: 'palette' });
+        const renderPaletteGrid = () => {
+          tabs.replaceChildren(...GROUPS.map((gname) => h('button', {
+            class: 'tab' + (gname === grp ? ' on' : ''),
+            onClick: () => { grp = gname; renderPaletteGrid(); },
+          }, gname)));
+          grid.replaceChildren(...PALETTE.filter((c) => c.group === grp).map((c) => h('button', {
+            class: 'swatch' + (pendingColor === c.id ? ' on' : ''),
+            onClick: () => {
+              pendingColor = c.id;
+              renderPaletteGrid();
+              preview();
+              sync();
+            },
+          }, h('span', { class: 'chip', style: { background: c.css } }), h('span', { class: 'n' }, c.name))));
+        };
+        renderPaletteGrid();
+        pickerContainer.append(tabs, grid);
+      }
+    };
+
+    renderPicker();
 
     root.append(
       ...header('เลือกสี', 3, () => { step = 2; render(); }),
       h('div', { class: 'preview-fix' }, h('canvas-holder', {}, cv)),
-      h('div', { class: 'hint', style: { paddingTop: '10px' } }, '3 แตะสีที่ชอบ'),
-      h('div', { style: { padding: '0 16px' } }, tabs),
-      h('div', { class: 'content' }, grid),
+      finishBar,
+      modeToggle,
+      pickerContainer,
       h('div', { class: 'bottom' }, again, done));
     preview(); sync();
   }
 
   function commit(): boolean {
     if (!pendingColor || maskCount(current) === 0) return false;
-    areas.push({ mask: current.slice(), colorId: pendingColor });
+    areas.push({ mask: current.slice(), colorId: pendingColor, finish: pendingFinish });
     committed = bake(areas);
     return true;
   }
@@ -368,7 +451,7 @@ export function painterScreen(project?: Project): Screen {
       id: proj?.id ?? uid(), name: proj?.name ?? `ทาสีบ้าน ${new Date().toLocaleDateString('th-TH')}`,
       mode: 'paint', created: proj?.created ?? Date.now(), updated: Date.now(),
       source: sourceBlob!, result: resultBlob!, colors: [...new Set(areas.map((a) => a.colorId))], items: [],
-      areas: areas.map<PaintArea>((a) => ({ mask: a.mask.slice().buffer, colorId: a.colorId })),
+      areas: areas.map<PaintArea>((a) => ({ mask: a.mask.slice().buffer, colorId: a.colorId, finish: a.finish })),
     });
     const save = async () => { proj = build(); await saveProject(proj); toast('บันทึกแล้ว ✓'); return proj; };
     root.append(
@@ -388,7 +471,7 @@ export function painterScreen(project?: Project): Screen {
         const c = await loadCanvas(project.source);
         W = c.width; H = c.height; base = c.getContext('2d')!.getImageData(0, 0, W, H);
       });
-      areas = (project.areas ?? []).map((a) => ({ mask: new Uint8Array(a.mask), colorId: a.colorId }));
+      areas = (project.areas ?? []).map((a) => ({ mask: new Uint8Array(a.mask), colorId: a.colorId, finish: a.finish }));
       committed = bake(areas); current = emptyMask(W, H); step = 4; render();
     })();
   } else render();

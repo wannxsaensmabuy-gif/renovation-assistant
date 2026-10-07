@@ -93,3 +93,27 @@ canvas-holder { display: block; }
 .zoom-reset-btn:active { transform: scale(0.95); }
 .zoom-hint { font-size: 13px; color: #7a6f64; font-weight: 500; display: flex; align-items: center; gap: 4px; }
 
+/* Designer themes styling */
+.main-mode-toggle { display: flex; flex: none; background: #eee7de; border-radius: 16px; padding: 4px; margin: 0 16px 8px; gap: 4px; }
+.main-mode-toggle button { flex: 1; border: 0; background: transparent; min-height: 44px; border-radius: 12px; font-size: 15px; font-weight: 700; color: #6e645a; }
+.main-mode-toggle button.on { background: #fff; color: #e0642b; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+
+.themes-list { display: flex; flex-direction: column; gap: 12px; }
+.theme-card { background: #fdfbf8; border: 2px solid #ede5da; border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 2px 6px rgba(0,0,0,.04); }
+.theme-card.on { border-color: #e0642b; background: #fffaf5; }
+.theme-head { display: flex; align-items: center; gap: 8px; }
+.theme-head .ico { font-size: 22px; }
+.theme-head b { font-size: 16px; flex: 1; }
+.theme-desc { font-size: 13px; color: #7a6f64; margin: 0; line-height: 1.4; }
+.theme-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.theme-slot { border: 2px solid transparent; border-radius: 12px; background: #fff; padding: 6px 4px; text-align: center; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.theme-slot.on { border-color: #e0642b; background: #fff3ec; }
+.theme-slot .chip { width: 36px; height: 36px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); }
+.theme-slot .role { font-size: 11px; font-weight: 700; color: #7a6f64; }
+.theme-slot .cname { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+.finish-bar { display: flex; flex: none; align-items: center; justify-content: space-between; padding: 2px 16px 8px; font-size: 14px; font-weight: 600; }
+.finish-options { display: flex; gap: 6px; }
+.finish-btn { border: 1px solid #ddd; background: #fff; border-radius: 12px; padding: 6px 12px; font-size: 13px; font-weight: 700; }
+.finish-btn.on { background: #2b2622; color: #fff; border-color: #2b2622; }
+

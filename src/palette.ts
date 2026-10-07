@@ -30,3 +30,96 @@ export const PALETTE: PaletteColor[] = [
 
 export const GROUPS = [...new Set(PALETTE.map((p) => p.group))];
 export const colorById = (id: string) => PALETTE.find((p) => p.id === id);
+
+export interface ThemeSlot {
+  role: 'ผนังหลัก' | 'ตัดขอบ/จั่ว' | 'เสา/รั้ว';
+  colorId: string;
+}
+
+export interface ArchitecturalTheme {
+  id: string;
+  name: string;
+  icon: string;
+  desc: string;
+  slots: ThemeSlot[];
+}
+
+export const ARCHITECTURAL_THEMES: ArchitecturalTheme[] = [
+  {
+    id: 'nordic',
+    name: 'นอร์ดิกหรูหรา',
+    icon: '🏛️',
+    desc: 'โมเดิร์น เรียบหรู ไม่ตกยุค คุมโทนสไตล์บ้านโครงการชั้นนำ',
+    slots: [
+      { role: 'ผนังหลัก', colorId: 'smoke' },
+      { role: 'ตัดขอบ/จั่ว', colorId: 'charcoal' },
+      { role: 'เสา/รั้ว', colorId: 'black' },
+    ],
+  },
+  {
+    id: 'japandi',
+    name: 'มูจิ เจแปนดิ',
+    icon: '🌿',
+    desc: 'อบอุ่น ละมุน ผสมผสานธรรมชาติ ปูนเปลือย และงานไม้',
+    slots: [
+      { role: 'ผนังหลัก', colorId: 'cream' },
+      { role: 'ตัดขอบ/จั่ว', colorId: 'teak' },
+      { role: 'เสา/รั้ว', colorId: 'concrete' },
+    ],
+  },
+  {
+    id: 'minimal_warm',
+    name: 'มินิมอล เอิร์ธโทน',
+    icon: '☕',
+    desc: 'คลีน สว่าง อบอุ่น สไตล์คาเฟ่เกาหลีและบ้านมินิมอลโมเดิร์น',
+    slots: [
+      { role: 'ผนังหลัก', colorId: 'white' },
+      { role: 'ตัดขอบ/จั่ว', colorId: 'beige' },
+      { role: 'เสา/รั้ว', colorId: 'oak' },
+    ],
+  },
+  {
+    id: 'loft',
+    name: 'โมเดิร์น ลอฟท์',
+    icon: '🏢',
+    desc: 'เท่ คม สไตล์ปูนเปลือย ตัดกับโครงสร้างเหล็กดำและหินชนวน',
+    slots: [
+      { role: 'ผนังหลัก', colorId: 'concrete' },
+      { role: 'ตัดขอบ/จั่ว', colorId: 'slate' },
+      { role: 'เสา/รั้ว', colorId: 'black' },
+    ],
+  },
+  {
+    id: 'terracotta',
+    name: 'เอิร์ธโทน รีสอร์ต',
+    icon: '🏡',
+    desc: 'มีชีวิตชีวา อารมณ์วิลล่าตากอากาศสไตล์เมดิเตอร์เรเนียน',
+    slots: [
+      { role: 'ผนังหลัก', colorId: 'sand' },
+      { role: 'ตัดขอบ/จั่ว', colorId: 'terracotta' },
+      { role: 'เสา/รั้ว', colorId: 'walnut' },
+    ],
+  },
+  {
+    id: 'cottage',
+    name: 'คลาสสิก คอทเทจ',
+    icon: '🍃',
+    desc: 'สงบ สดชื่น โทนเขียวเสจตัดขาวคลาสสิกสไตล์อังกฤษ',
+    slots: [
+      { role: 'ผนังหลัก', colorId: 'white' },
+      { role: 'ตัดขอบ/จั่ว', colorId: 'sage' },
+      { role: 'เสา/รั้ว', colorId: 'caramel' },
+    ],
+  },
+  {
+    id: 'coastal',
+    name: 'โมเดิร์น โคสตัล',
+    icon: '🌊',
+    desc: 'สดชื่น โปร่ง เบาสบาย อารมณ์บ้านพักตากอากาศริมทะเล',
+    slots: [
+      { role: 'ผนังหลัก', colorId: 'pearl' },
+      { role: 'ตัดขอบ/จั่ว', colorId: 'sky' },
+      { role: 'เสา/รั้ว', colorId: 'navy' },
+    ],
+  },
+];
