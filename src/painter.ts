@@ -320,45 +320,77 @@ export function painterScreen(project?: Project): Screen {
       class: 'btn primary',
       onClick: () => leaveStep2(() => { step = 3; render(); }),
     }, 'ถัดไป: เลือกสี →') as HTMLButtonElement;
-    function refresh() { nextBtn.disabled = maskCount(current) === 0; }
+    function refresh() {
+      nextBtn.disabled = maskCount(current) === 0;
+      (window as any)._s2refresh?.();
+    }
 
-    const modeBtns = (['smart', 'tap', 'add', 'erase'] as const).map((m) => h('button', {
-      class: mode === m ? 'on' : '', onClick: () => {
-        mode = m;
-        modeBtns.forEach((b, i) => b.classList.toggle('on', (['smart', 'tap', 'add', 'erase'] as const)[i] === m));
-        updateSize(m !== 'tap');
+    const MODES = [
+      { id: 'smart', icon: '🧲', label: 'ดูดขอบ' },
+      { id: 'tap',   icon: '👆', label: 'แตะผนัง' },
+      { id: 'add',   icon: '🖌️', label: 'อิสระ' },
+      { id: 'erase', icon: '🧽', label: 'ลบออก' },
+    ] as const;
+
+    const modeBtns = MODES.map((m) => h('button', {
+      class: (mode === m.id ? 'on' : '') + (m.id === 'erase' ? ' erase' : ''),
+      onClick: () => {
+        mode = m.id as typeof mode;
+        modeBtns.forEach((b, i) => {
+          b.className = (MODES[i].id === mode ? 'on' : '') + (MODES[i].id === 'erase' ? ' erase' : '');
+        });
+        updateSize(mode !== 'tap');
         updateHintText();
       },
-    }, m === 'smart' ? '🧲 ดูดขอบ ✨' : m === 'tap' ? '👆 แตะผนัง' : m === 'add' ? '🖌️ อิสระ' : '🧽 ลบออก'));
+    },
+      h('span', { class: 'tool-icon' }, m.icon),
+      h('span', { class: 'tool-label' }, m.label),
+    ));
 
-    const modeBar = h('div', { class: 'step2-mode-bar' }, h('div', { class: 'seg' }, modeBtns));
+    const segToolbar = h('div', { class: 'seg-toolbar' }, ...modeBtns);
+    const toolbar = h('div', { class: 'step2-toolbar' }, segToolbar);
 
-    const hintBadge = h('div', { class: 'step2-hint-badge' });
+    // Hint strip
+    const hintStrip = h('div', { class: 'step2-hint-strip' });
     const updateHintText = () => {
-      if (mode === 'smart') {
-        hintBadge.innerHTML = '🧲 <b>โหมดดูดขอบ:</b> ปาดได้เลย แปรงจะล็อกขอบกำแพงอัตโนมัติ ไม่เลอะออกนอกเส้น';
-      } else if (mode === 'tap') {
-        hintBadge.innerHTML = '👆 <b>แตะเลือก:</b> จิ้มจุดที่ต้องการเพื่อเลือกสีเดียวกันทั้งผืน';
-      } else if (mode === 'add') {
-        hintBadge.innerHTML = '🖌️ <b>ระบายอิสระ:</b> สำหรับเก็บจุดเล็กๆ หรือทับแนวเสา';
-      } else {
-        hintBadge.innerHTML = '🧽 <b>ยางลบดูดขอบ:</b> ลบส่วนที่เกินออกโดยไม่กินเนื้อผนัง';
-      }
+      const hints: Record<typeof mode, string> = {
+        smart: '<span class="hint-icon">🧲</span> <span><b>แปรงดูดขอบ:</b> ปาดลวกๆ — จะล็อกขอบกำแพงให้เองอัตโนมัติ</span>',
+        tap:   '<span class="hint-icon">👆</span> <span><b>แตะเลือก:</b> แตะ 1 ครั้ง เลือกสีเดียวกันทั้งผนัง</span>',
+        add:   '<span class="hint-icon">🖌️</span> <span><b>ระบายอิสระ:</b> เก็บจุดเล็กๆ หรือทับแนวเสาได้</span>',
+        erase: '<span class="hint-icon">🧽</span> <span><b>ลบออก:</b> ลบส่วนที่เกินได้แม่นยำ ไม่กินเนื้อผนัง</span>',
+      };
+      hintStrip.innerHTML = hints[mode];
+      hintStrip.className = 'step2-hint-strip' + (mode === 'erase' ? ' erase-mode' : '');
     };
     updateHintText();
 
-    const controlsStrip = h('div', { class: 'step2-controls-strip' },
-      h('div', { class: 'size-ctrl-wrap' },
-        h('button', { class: 'size-step-btn', onClick: smaller, title: 'ลดขนาด' }, '➖'),
-        sizeInfo,
-        h('button', { class: 'size-step-btn', onClick: bigger, title: 'เพิ่มขนาด' }, '➕')),
-      h('button', { class: 'step2-undo-btn', onClick: undoBtn }, '↩️ ย้อนกลับ'));
+    // Size pill + undo pill row
+    const sizePillLabel = h('span', { class: 'size-pill-label' }, '');
+    const refreshSizePillLabel = () => {
+      if (mode === 'tap') {
+        const lv = Math.round((tol - 14) / 12) + 1;
+        sizePillLabel.textContent = `แตะ: ระดับ ${lv}/9`;
+      } else {
+        const label = mode === 'smart' ? 'ดูดขอบ' : mode === 'add' ? 'อิสระ' : 'ลบ';
+        sizePillLabel.textContent = `${label}: ${bIdx + 1}/${BR.length}`;
+      }
+    };
+    refreshSizePillLabel();
 
-    const floatingHint = h('div', { class: 'stage-floating-hint' }, '💡 ใช้ 2 นิ้วซูม/เลื่อนภาพได้');
+    const sizePill = h('div', { class: 'size-pill' },
+      h('button', { class: 'size-pill-btn', onClick: () => { smaller(); refreshSizePillLabel(); }, title: 'ลด' }, '−'),
+      sizePillLabel,
+      h('button', { class: 'size-pill-btn', onClick: () => { bigger(); refreshSizePillLabel(); }, title: 'เพิ่ม' }, '+'),
+    );
+
+    const undoPill = h('button', { class: 'step2-undo-pill', onClick: undoBtn }, '↩ ย้อนกลับ');
+    const sizeRow = h('div', { class: 'step2-size-row' }, sizePill, undoPill);
+
+    const floatingHint = h('div', { class: 'stage-floating-hint' }, '👌 2 นิ้วซูม · ซูมแล้วเลื่อนได้');
     const stageContainer = h('div', { class: 'canvas-stage-container' }, wrap, floatingHint);
 
     const resizeWrap = () => {
-      const cw = stageContainer.clientWidth || (window.innerWidth - 32);
+      const cw = stageContainer.clientWidth || (window.innerWidth - 24);
       const ch = stageContainer.clientHeight || 360;
       const aspect = W / H;
       let fw = cw;
@@ -375,19 +407,36 @@ export function painterScreen(project?: Project): Screen {
     window.addEventListener('resize', resizeWrap);
     requestAnimationFrame(resizeWrap);
 
-    const bottomUndo = h('button', { class: 'btn', onClick: undoBtn }, '↩️ ย้อนกลับ');
+    const nextBtn2 = h('button', {
+      class: 'btn primary',
+      onClick: () => leaveStep2(() => { step = 3; render(); }),
+    }, 'เลือกสี →') as HTMLButtonElement;
+    // keep nextBtn and nextBtn2 in sync
+    const origRefresh = refresh;
+    // override refresh to also update nextBtn2
+    const refreshAll = () => {
+      const disabled = maskCount(current) === 0;
+      nextBtn.disabled = disabled;
+      nextBtn2.disabled = disabled;
+      refreshSizePillLabel();
+    };
 
     root.append(
-      ...header('เลือกจุดที่จะทาสี', 2, () => leaveStep2(async () => {
+      ...header('ระบายพื้นที่', 2, () => leaveStep2(async () => {
         if (resultBlob || areas.length) { await finish(); step = 4; } else step = 1; render();
       })),
-      modeBar,
-      hintBadge,
-      controlsStrip,
+      toolbar,
+      hintStrip,
+      sizeRow,
       stageContainer,
-      h('div', { class: 'bottom' }, bottomUndo, nextBtn));
-    draw(); refresh();
+      h('div', { class: 'bottom' }, h('button', { class: 'btn', onClick: undoBtn }, '↩ ย้อนกลับ'), nextBtn2));
+
+    // Override refresh to update the correct button
+    Object.defineProperty(window, '_s2refresh', { value: refreshAll, configurable: true });
+    (window as any)._s2refresh();
+    draw();
   }
+
 
   // ---------- STEP 3 : pick color ----------
   function stepColor() {
@@ -548,9 +597,24 @@ export function painterScreen(project?: Project): Screen {
 
     renderMode();
 
+    // Floating finish toggle on the preview canvas
+    const floatMatt = h('button', { class: 'on', onClick: () => setFinish('matt') }, 'ด้าน');
+    const floatSheen = h('button', { onClick: () => setFinish('sheen') }, 'กึ่งเงา ✨');
+    const origSetFinish = setFinish;
+    // Sync float buttons too
+    const setFinishWrapped = (f: 'matt' | 'sheen') => {
+      origSetFinish(f);
+      floatMatt.classList.toggle('on', f === 'matt');
+      floatSheen.classList.toggle('on', f === 'sheen');
+    };
+    floatMatt.onclick = () => setFinishWrapped('matt');
+    floatSheen.onclick = () => setFinishWrapped('sheen');
+    const finishFloat = h('div', { class: 'preview-finish-float' }, floatMatt, floatSheen);
+    const previewWrap = h('div', { class: 'preview-fix' }, h('canvas-holder', {}, cv), finishFloat);
+
     root.append(
       ...header('เลือกสี', 3, () => { step = 2; render(); }),
-      h('div', { class: 'preview-fix' }, h('canvas-holder', {}, cv)),
+      previewWrap,
       modeToggle,
       categoryTabsBar,
       subBar,
