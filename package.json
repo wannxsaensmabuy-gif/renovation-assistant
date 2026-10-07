@@ -1,0 +1,21 @@
+{
+  "name": "renovation-assistant",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview --host"
+  },
+  "dependencies": {
+    "@imgly/background-removal": "1.7.0",
+    "idb": "^8.0.3",
+    "konva": "10.7.1"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "vite": "8.3.3"
+  }
+}
