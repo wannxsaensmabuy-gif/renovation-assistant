@@ -69,8 +69,38 @@ export function painterScreen(project?: Project): Screen {
     };
     const sched = () => { if (!raf) raf = requestAnimationFrame(draw); };
     const pos = (e: PointerEvent) => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height }; };
-    const R = () => brush * (Math.max(W, H) / 1000);
+    const BR = [4, 8, 14, 22, 32, 44, 60];
+    let bIdx = 2;
+    const R = () => BR[bIdx] * (Math.max(W, H) / 1000);
+    const ring = h('div', { class: 'ring' });
+    const dot = h('i', { class: 'size-dot' });
+    const sizeTxt = h('span', {});
+    const sizeInfo = h('div', { class: 'size-info' }, dot, sizeTxt);
+    let ringTimer = 0;
+    /** diameter of the brush in on-screen pixels */
+    const ringPx = () => Math.max(6, 2 * R() * cv.getBoundingClientRect().width / W);
+    const placeRing = (cx: number, cy: number) => {
+      const d = ringPx(); ring.style.width = ring.style.height = d + 'px';
+      ring.style.left = cx - d / 2 + 'px'; ring.style.top = cy - d / 2 + 'px'; ring.style.display = 'block';
+    };
+    const updateSize = (flash = false) => {
+      if (mode === 'tap') {
+        const lv = Math.round((tol - 14) / 12) + 1;
+        dot.style.display = 'none';
+        sizeTxt.textContent = `พื้นที่ที่เลือกต่อการแตะ: ระดับ ${lv}/9`;
+        return;
+      }
+      const d = Math.min(ringPx(), 60);
+      dot.style.display = 'block'; dot.style.width = dot.style.height = d + 'px';
+      sizeTxt.textContent = `ขนาดแปรง: ระดับ ${bIdx + 1}/${BR.length}`;
+      if (flash) {
+        const r = cv.getBoundingClientRect();
+        placeRing(r.width / 2, r.height / 2);
+        clearTimeout(ringTimer); ringTimer = window.setTimeout(() => (ring.style.display = 'none'), 1600);
+      }
+    };
     let painting = false;
+    const local = (e: PointerEvent) => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
     cv.addEventListener('pointerdown', (e) => {
       cv.setPointerCapture(e.pointerId);
       const { x, y } = pos(e);
@@ -79,28 +109,36 @@ export function painterScreen(project?: Project): Screen {
         last = { x, y, before: current.slice() };
         const g = growFrom(base, x, y, tol);
         unionInto(current, g);
-      } else { painting = true; paintDisc(current, W, H, x, y, R(), mode === 'add' ? 1 : 0); }
+      } else {
+        painting = true; paintDisc(current, W, H, x, y, R(), mode === 'add' ? 1 : 0);
+        clearTimeout(ringTimer); const l = local(e); placeRing(l.x, l.y);
+      }
       sched(); refresh();
     });
     cv.addEventListener('pointermove', (e) => {
       if (!painting) return;
       const { x, y } = pos(e); paintDisc(current, W, H, x, y, R(), mode === 'add' ? 1 : 0); sched();
+      const l = local(e); placeRing(l.x, l.y);
     });
-    const end = () => { painting = false; refresh(); };
+    const end = () => { painting = false; ringTimer = window.setTimeout(() => (ring.style.display = 'none'), 500); refresh(); };
     cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+    setTimeout(() => updateSize(), 0);
 
     const nextBtn = h('button', { class: 'btn primary', onClick: () => { step = 3; render(); } }, 'ถัดไป →') as HTMLButtonElement;
     const modeBtns = (['tap', 'add', 'erase'] as const).map((m) => h('button', {
-      class: mode === m ? 'on' : '', onClick: () => { mode = m; modeBtns.forEach((b, i) => b.classList.toggle('on', (['tap', 'add', 'erase'] as const)[i] === m)); },
+      class: mode === m ? 'on' : '', onClick: () => { mode = m; modeBtns.forEach((b, i) => b.classList.toggle('on', (['tap', 'add', 'erase'] as const)[i] === m)); updateSize(m !== 'tap'); },
     }, m === 'tap' ? '👆 แตะเลือก' : m === 'add' ? '🖌️ ระบายเพิ่ม' : '🧽 ลบออก'));
 
+    const regrow = () => { if (last) { current = last.before.slice(); unionInto(current, growFrom(base, last.x, last.y, tol)); sched(); refresh(); } };
     const bigger = () => {
-      if (mode === 'tap') { tol = Math.min(110, tol + 12); if (last) { current = last.before.slice(); unionInto(current, growFrom(base, last.x, last.y, tol)); sched(); refresh(); } }
-      else brush = Math.min(60, brush + 6);
+      if (mode === 'tap') { tol = Math.min(110, tol + 12); regrow(); }
+      else bIdx = Math.min(BR.length - 1, bIdx + 1);
+      updateSize(true);
     };
     const smaller = () => {
-      if (mode === 'tap') { tol = Math.max(14, tol - 12); if (last) { current = last.before.slice(); unionInto(current, growFrom(base, last.x, last.y, tol)); sched(); refresh(); } }
-      else brush = Math.max(4, brush - 5);
+      if (mode === 'tap') { tol = Math.max(14, tol - 12); regrow(); }
+      else bIdx = Math.max(0, bIdx - 1);
+      updateSize(true);
     };
     const undoBtn = () => {
       if (undo.length) { current = undo.pop()! as typeof current; last = null; }
@@ -113,8 +151,9 @@ export function painterScreen(project?: Project): Screen {
       ...header('เลือกจุดที่จะทาสี', 2, async () => { if (resultBlob || areas.length) { await finish(); step = 4; } else step = 1; render(); }),
       h('div', { class: 'hint' }, '2 แตะที่ผนัง รั้ว หรือเสา'),
       h('div', { class: 'content' },
-        h('div', { class: 'canvas-wrap' }, cv),
+        h('div', { class: 'canvas-wrap' }, cv, ring),
         h('div', { class: 'row' }, h('div', { class: 'seg' }, modeBtns)),
+        sizeInfo,
         h('div', { class: 'row' },
           h('button', { class: 'tool', onClick: bigger }, '➕ กว้างขึ้น'),
           h('button', { class: 'tool', onClick: smaller }, '➖ แคบลง'),

@@ -81,3 +81,7 @@ canvas-holder { display: block; }
 .swatch .chip { height: 44px; }
 .swatch { font-size: 12px; }
 .swatch span.n { padding: 4px 2px 6px; }
+
+.ring { position: absolute; display: none; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 2px #e0642b, inset 0 0 0 1px rgba(0,0,0,.4); pointer-events: none; background: rgba(224,100,43,.18); }
+.size-info { display: flex; align-items: center; gap: 12px; min-height: 40px; font-size: 15px; font-weight: 600; padding: 0 4px; }
+.size-dot { display: none; flex: none; border-radius: 50%; background: #e0642b; border: 2px solid #fff; box-shadow: 0 0 0 1px #aaa; }
