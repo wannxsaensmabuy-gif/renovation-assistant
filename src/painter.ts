@@ -1,7 +1,7 @@
 import { h, back, go, replace, topBar, stepsBar, photoPicker, compareView, toast, busy, type Screen } from './ui';
 import { PALETTE, GROUPS, ARCHITECTURAL_THEMES, colorById } from './palette';
 import { loadCanvas, toBlob } from './img';
-import { growFrom, paintDisc, recolor, emptyMask, maskCount, unionInto } from './engine';
+import { growFrom, paintDisc, paintSmartDisc, paintSmartStroke, recolor, emptyMask, maskCount, unionInto } from './engine';
 import { saveProject, uid, type Project, type PaintArea } from './db';
 import { summaryScreen } from './summary';
 
@@ -15,7 +15,7 @@ export function painterScreen(project?: Project): Screen {
   let committed!: ImageData;
   let current = new Uint8Array(0);
   let undo: Uint8Array[] = [];
-  let mode: 'tap' | 'add' | 'erase' = 'tap';
+  let mode: 'smart' | 'tap' | 'add' | 'erase' = 'smart';
   let tol = 38; let brush = 14;
   let last: { x: number; y: number; before: Uint8Array } | null = null;
   let pendingColor: string | null = null;
@@ -173,12 +173,13 @@ export function painterScreen(project?: Project): Screen {
       if (mode === 'tap') {
         const lv = Math.round((tol - 14) / 12) + 1;
         dot.style.display = 'none';
-        sizeTxt.textContent = `พื้นที่ที่เลือกต่อการแตะ: ระดับ ${lv}/9`;
+        sizeTxt.textContent = `พื้นที่ต่อการแตะ: ${lv}/9`;
         return;
       }
       const d = Math.min(ringPx(), 60);
       dot.style.display = 'block'; dot.style.width = dot.style.height = d + 'px';
-      sizeTxt.textContent = `ขนาดแปรง: ระดับ ${bIdx + 1}/${BR.length}`;
+      const label = mode === 'smart' ? 'แปรงดูดขอบ' : mode === 'add' ? 'แปรงอิสระ' : 'ยางลบ';
+      sizeTxt.textContent = `${label}: ระดับ ${bIdx + 1}/${BR.length}`;
       if (flash) {
         const r = cv.getBoundingClientRect();
         placeRing((r.width / zoom) / 2, (r.height / zoom) / 2);
@@ -187,6 +188,8 @@ export function painterScreen(project?: Project): Screen {
     };
 
     let painting = false;
+    let lastStrokeX = -1, lastStrokeY = -1;
+
     const local = (e: PointerEvent) => {
       const r = cv.getBoundingClientRect();
       return { x: (e.clientX - r.left) / zoom, y: (e.clientY - r.top) / zoom };
@@ -194,7 +197,7 @@ export function painterScreen(project?: Project): Screen {
 
     wrap.addEventListener('pointerdown', (e) => {
       pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
-      wrap.setPointerCapture(e.pointerId);
+      try { wrap.setPointerCapture(e.pointerId); } catch {}
 
       if (pointers.size >= 2) {
         painting = false;
@@ -211,13 +214,22 @@ export function painterScreen(project?: Project): Screen {
       if (pointers.size === 1) {
         const { x, y } = pos(e);
         undo.push(current.slice()); if (undo.length > 30) undo.shift();
+        lastStrokeX = x; lastStrokeY = y;
         if (mode === 'tap') {
           last = { x, y, before: current.slice() };
           const g = growFrom(base, x, y, tol);
           unionInto(current, g);
-        } else {
+        } else if (mode === 'smart') {
           painting = true;
-          paintDisc(current, W, H, x, y, R(), mode === 'add' ? 1 : 0);
+          paintSmartDisc(current, base, x, y, R(), 1);
+          clearTimeout(ringTimer); const l = local(e); placeRing(l.x, l.y);
+        } else if (mode === 'add') {
+          painting = true;
+          paintDisc(current, W, H, x, y, R(), 1);
+          clearTimeout(ringTimer); const l = local(e); placeRing(l.x, l.y);
+        } else if (mode === 'erase') {
+          painting = true;
+          paintSmartDisc(current, base, x, y, R(), 0);
           clearTimeout(ringTimer); const l = local(e); placeRing(l.x, l.y);
         }
         updateLoupe(e.clientX, e.clientY, x, y);
@@ -244,7 +256,14 @@ export function painterScreen(project?: Project): Screen {
 
       if (painting) {
         const { x, y } = pos(e);
-        paintDisc(current, W, H, x, y, R(), mode === 'add' ? 1 : 0);
+        if (mode === 'smart') {
+          paintSmartStroke(current, base, lastStrokeX, lastStrokeY, x, y, R(), 1, true);
+        } else if (mode === 'add') {
+          paintSmartStroke(current, base, lastStrokeX, lastStrokeY, x, y, R(), 1, false);
+        } else if (mode === 'erase') {
+          paintSmartStroke(current, base, lastStrokeX, lastStrokeY, x, y, R(), 0, true);
+        }
+        lastStrokeX = x; lastStrokeY = y;
         sched();
         const l = local(e); placeRing(l.x, l.y);
         updateLoupe(e.clientX, e.clientY, x, y);
@@ -303,15 +322,30 @@ export function painterScreen(project?: Project): Screen {
     }, 'ถัดไป: เลือกสี →') as HTMLButtonElement;
     function refresh() { nextBtn.disabled = maskCount(current) === 0; }
 
-    const modeBtns = (['tap', 'add', 'erase'] as const).map((m) => h('button', {
+    const modeBtns = (['smart', 'tap', 'add', 'erase'] as const).map((m) => h('button', {
       class: mode === m ? 'on' : '', onClick: () => {
         mode = m;
-        modeBtns.forEach((b, i) => b.classList.toggle('on', (['tap', 'add', 'erase'] as const)[i] === m));
+        modeBtns.forEach((b, i) => b.classList.toggle('on', (['smart', 'tap', 'add', 'erase'] as const)[i] === m));
         updateSize(m !== 'tap');
+        updateHintText();
       },
-    }, m === 'tap' ? '👆 แตะเลือกผนัง' : m === 'add' ? '🖌️ ระบายเพิ่ม' : '🧽 ลบจุดที่เกิน'));
+    }, m === 'smart' ? '🧲 ดูดขอบ ✨' : m === 'tap' ? '👆 แตะผนัง' : m === 'add' ? '🖌️ อิสระ' : '🧽 ลบออก'));
 
     const modeBar = h('div', { class: 'step2-mode-bar' }, h('div', { class: 'seg' }, modeBtns));
+
+    const hintBadge = h('div', { class: 'step2-hint-badge' });
+    const updateHintText = () => {
+      if (mode === 'smart') {
+        hintBadge.innerHTML = '🧲 <b>โหมดดูดขอบ:</b> ปาดได้เลย แปรงจะล็อกขอบกำแพงอัตโนมัติ ไม่เลอะออกนอกเส้น';
+      } else if (mode === 'tap') {
+        hintBadge.innerHTML = '👆 <b>แตะเลือก:</b> จิ้มจุดที่ต้องการเพื่อเลือกสีเดียวกันทั้งผืน';
+      } else if (mode === 'add') {
+        hintBadge.innerHTML = '🖌️ <b>ระบายอิสระ:</b> สำหรับเก็บจุดเล็กๆ หรือทับแนวเสา';
+      } else {
+        hintBadge.innerHTML = '🧽 <b>ยางลบดูดขอบ:</b> ลบส่วนที่เกินออกโดยไม่กินเนื้อผนัง';
+      }
+    };
+    updateHintText();
 
     const controlsStrip = h('div', { class: 'step2-controls-strip' },
       h('div', { class: 'size-ctrl-wrap' },
@@ -348,6 +382,7 @@ export function painterScreen(project?: Project): Screen {
         if (resultBlob || areas.length) { await finish(); step = 4; } else step = 1; render();
       })),
       modeBar,
+      hintBadge,
       controlsStrip,
       stageContainer,
       h('div', { class: 'bottom' }, bottomUndo, nextBtn));
