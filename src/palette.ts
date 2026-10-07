@@ -40,6 +40,7 @@ export interface ArchitecturalTheme {
   id: string;
   name: string;
   icon: string;
+  tag: string;
   desc: string;
   slots: ThemeSlot[];
 }
@@ -49,6 +50,7 @@ export const ARCHITECTURAL_THEMES: ArchitecturalTheme[] = [
     id: 'nordic',
     name: 'นอร์ดิกหรูหรา',
     icon: '🏛️',
+    tag: 'ยอดนิยมอันดับ 1',
     desc: 'โมเดิร์น เรียบหรู ไม่ตกยุค คุมโทนสไตล์บ้านโครงการชั้นนำ',
     slots: [
       { role: 'ผนังหลัก', colorId: 'smoke' },
@@ -60,6 +62,7 @@ export const ARCHITECTURAL_THEMES: ArchitecturalTheme[] = [
     id: 'japandi',
     name: 'มูจิ เจแปนดิ',
     icon: '🌿',
+    tag: 'อบอุ่นธรรมชาติ',
     desc: 'อบอุ่น ละมุน ผสมผสานธรรมชาติ ปูนเปลือย และงานไม้',
     slots: [
       { role: 'ผนังหลัก', colorId: 'cream' },
@@ -71,6 +74,7 @@ export const ARCHITECTURAL_THEMES: ArchitecturalTheme[] = [
     id: 'minimal_warm',
     name: 'มินิมอล เอิร์ธโทน',
     icon: '☕',
+    tag: 'สไตล์คาเฟ่เกาหลี',
     desc: 'คลีน สว่าง อบอุ่น สไตล์คาเฟ่เกาหลีและบ้านมินิมอลโมเดิร์น',
     slots: [
       { role: 'ผนังหลัก', colorId: 'white' },
@@ -82,6 +86,7 @@ export const ARCHITECTURAL_THEMES: ArchitecturalTheme[] = [
     id: 'loft',
     name: 'โมเดิร์น ลอฟท์',
     icon: '🏢',
+    tag: 'เท่ คม สไตล์อินดัสเทรียล',
     desc: 'เท่ คม สไตล์ปูนเปลือย ตัดกับโครงสร้างเหล็กดำและหินชนวน',
     slots: [
       { role: 'ผนังหลัก', colorId: 'concrete' },
@@ -93,6 +98,7 @@ export const ARCHITECTURAL_THEMES: ArchitecturalTheme[] = [
     id: 'terracotta',
     name: 'เอิร์ธโทน รีสอร์ต',
     icon: '🏡',
+    tag: 'วิลล่าตากอากาศ',
     desc: 'มีชีวิตชีวา อารมณ์วิลล่าตากอากาศสไตล์เมดิเตอร์เรเนียน',
     slots: [
       { role: 'ผนังหลัก', colorId: 'sand' },
@@ -104,6 +110,7 @@ export const ARCHITECTURAL_THEMES: ArchitecturalTheme[] = [
     id: 'cottage',
     name: 'คลาสสิก คอทเทจ',
     icon: '🍃',
+    tag: 'คลาสสิกอังกฤษ',
     desc: 'สงบ สดชื่น โทนเขียวเสจตัดขาวคลาสสิกสไตล์อังกฤษ',
     slots: [
       { role: 'ผนังหลัก', colorId: 'white' },
@@ -115,6 +122,7 @@ export const ARCHITECTURAL_THEMES: ArchitecturalTheme[] = [
     id: 'coastal',
     name: 'โมเดิร์น โคสตัล',
     icon: '🌊',
+    tag: 'สดชื่นริมทะเล',
     desc: 'สดชื่น โปร่ง เบาสบาย อารมณ์บ้านพักตากอากาศริมทะเล',
     slots: [
       { role: 'ผนังหลัก', colorId: 'pearl' },

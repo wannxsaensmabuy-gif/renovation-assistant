@@ -383,9 +383,10 @@ export function painterScreen(project?: Project): Screen {
       ARCHITECTURAL_THEMES.forEach((thm) => {
         const hasSelectedColor = thm.slots.some((s) => s.colorId === pendingColor);
         const slotsRow = h('div', { class: 'theme-slots' },
-          thm.slots.map((s) => {
+          thm.slots.map((s, idx) => {
             const c = colorById(s.colorId)!;
             const isSlotActive = pendingColor === s.colorId;
+            const pct = idx === 0 ? '60%' : idx === 1 ? '30%' : '10%';
             return h('div', {
               class: 'theme-slot' + (isSlotActive ? ' on' : ''),
               onClick: () => {
@@ -397,15 +398,24 @@ export function painterScreen(project?: Project): Screen {
               },
             },
               h('div', { class: 'chip', style: { background: c.css } }),
-              h('span', { class: 'role' }, s.role),
-              h('span', { class: 'cname' }, c.name));
+              h('span', { class: 'role' }, `${s.role} (${pct})`),
+              h('span', { class: 'cname' }, c.name),
+              isSlotActive ? h('span', { class: 'slot-badge' }, '✓ เลือกอยู่') : null);
           }));
+
+        // 60-30-10 preview bar
+        const propBar = h('div', { class: 'proportion-bar' },
+          h('div', { class: 'prop-seg p60', style: { background: colorById(thm.slots[0].colorId)!.css } }),
+          h('div', { class: 'prop-seg p30', style: { background: colorById(thm.slots[1].colorId)!.css } }),
+          h('div', { class: 'prop-seg p10', style: { background: colorById(thm.slots[2].colorId)!.css } }));
 
         const card = h('div', { class: 'theme-card' + (hasSelectedColor ? ' on' : '') },
           h('div', { class: 'theme-head' },
             h('span', { class: 'ico' }, thm.icon),
-            h('b', {}, thm.name)),
+            h('b', {}, thm.name),
+            h('span', { class: 'theme-tag' }, thm.tag)),
           h('p', { class: 'theme-desc' }, thm.desc),
+          propBar,
           slotsRow);
         themesList.append(card);
       });
@@ -413,15 +423,21 @@ export function painterScreen(project?: Project): Screen {
 
     const paletteGrid = h('div', { class: 'palette' });
     const renderPaletteGrid = () => {
-      paletteGrid.replaceChildren(...PALETTE.filter((c) => c.group === grp).map((c) => h('button', {
-        class: 'swatch' + (pendingColor === c.id ? ' on' : ''),
-        onClick: () => {
-          pendingColor = c.id;
-          renderPaletteGrid();
-          preview();
-          sync();
+      paletteGrid.replaceChildren(...PALETTE.filter((c) => c.group === grp).map((c) => {
+        const isSel = pendingColor === c.id;
+        return h('button', {
+          class: 'swatch' + (isSel ? ' on' : ''),
+          onClick: () => {
+            pendingColor = c.id;
+            renderPaletteGrid();
+            preview();
+            sync();
+          },
         },
-      }, h('span', { class: 'chip', style: { background: c.css } }), h('span', { class: 'n' }, c.name))));
+          h('span', { class: 'chip', style: { background: c.css } },
+            isSel ? h('span', { class: 'swatch-check' }, '✓') : null),
+          h('span', { class: 'n' }, c.name));
+      }));
     };
 
     const renderMode = () => {
@@ -483,14 +499,27 @@ export function painterScreen(project?: Project): Screen {
       areas: areas.map<PaintArea>((a) => ({ mask: a.mask.slice().buffer, colorId: a.colorId, finish: a.finish })),
     });
     const save = async () => { proj = build(); await saveProject(proj); toast('บันทึกแล้ว ✓'); return proj; };
+    const chipsRow = areas.length ? h('div', { class: 'sum-sec' },
+      h('h3', {}, '🎨 เฉดสีที่ทาในภาพนี้:'),
+      h('div', { class: 'chips' },
+        ...areas.map((a, i) => {
+          const c = colorById(a.colorId)!;
+          const finishTxt = a.finish === 'sheen' ? 'กึ่งเงาซาติน' : 'ผิวด้าน';
+          return h('div', { class: 'chip-i' },
+            h('i', { style: { background: c.css } }),
+            h('span', {}, `จุดที่ ${i + 1}: ${c.name} (${finishTxt})`));
+        }))) : null;
+
     root.append(
-      ...header('ผลลัพธ์', 4, () => { back(); }),
-      h('div', { class: 'hint' }, '4 ลากดูก่อน/หลัง'),
-      h('div', { class: 'content' }, compareView(beforeUrl, afterUrl),
+      ...header('ภาพเปรียบเทียบ ก่อน/หลัง', 4, () => { back(); }),
+      h('div', { class: 'hint' }, 'ลากแถบตรงกลาง เพื่อดูผลลัพธ์'),
+      h('div', { class: 'content' },
+        compareView(beforeUrl, afterUrl),
+        chipsRow,
         h('div', { class: 'row' },
-          h('button', { class: 'btn', onClick: () => { current = emptyMask(W, H); undo = []; last = null; pendingColor = null; step = 2; render(); } }, '✏️ แก้ไข'),
-          h('button', { class: 'btn', onClick: save }, '💾 บันทึก'))),
-      h('div', { class: 'bottom' }, h('button', { class: 'btn primary', onClick: async () => { const p = await save(); go(() => summaryScreen(p)); } }, 'สรุปงาน / ส่งต่อ →')));
+          h('button', { class: 'btn', onClick: () => { current = emptyMask(W, H); undo = []; last = null; pendingColor = null; step = 2; render(); } }, '✏️ ปรับแก้จุดทา'),
+          h('button', { class: 'btn', onClick: save }, '💾 บันทึกรูป'))),
+      h('div', { class: 'bottom' }, h('button', { class: 'btn primary', onClick: async () => { const p = await save(); go(() => summaryScreen(p)); } }, '📱 สรุปงาน / ส่งต่อ LINE →')));
   }
 
   // ---------- boot ----------

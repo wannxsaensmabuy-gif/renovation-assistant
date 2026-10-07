@@ -81,8 +81,8 @@ export function confirmBox(msg: string): Promise<boolean> {
   });
 }
 
-/** Big camera / gallery buttons. */
-export function photoPicker(onPick: (f: File) => void, camLabel = '📷 ถ่ายรูป', galLabel = '🖼️ เลือกรูปจากเครื่อง') {
+/** Big camera / gallery buttons with illustration and guidance. */
+export function photoPicker(onPick: (f: File) => void, camLabel = 'ถ่ายรูปใหม่ทันที', galLabel = 'เลือกรูปจากเครื่อง') {
   const mk = (capture: boolean) => {
     const i = h('input', { type: 'file', accept: 'image/*', style: { display: 'none' } }) as HTMLInputElement;
     if (capture) i.setAttribute('capture', 'environment');
@@ -91,8 +91,16 @@ export function photoPicker(onPick: (f: File) => void, camLabel = '📷 ถ่�
   };
   const cam = mk(true), gal = mk(false);
   return h('div', { class: 'photo-pick' },
-    h('button', { class: 'btn primary', style: { minHeight: '96px', fontSize: '22px' }, onClick: () => cam.click() }, camLabel),
-    h('button', { class: 'btn', style: { minHeight: '96px', fontSize: '22px' }, onClick: () => gal.click() }, galLabel),
+    h('div', { class: 'upload-guide-card' },
+      h('div', { class: 'upload-illustration' }, '📸'),
+      h('h3', {}, 'ใส่รูปเพื่อเริ่มออกแบบ'),
+      h('p', {}, 'แนะนำให้ถ่ายรูปมุมตรง แสงสว่างชัดเจน จะได้สีที่สมจริงที่สุด')),
+    h('button', { class: 'btn primary upload-action-btn', onClick: () => cam.click() },
+      h('span', { class: 'btn-ico' }, '📷'),
+      h('span', {}, camLabel)),
+    h('button', { class: 'btn upload-action-btn secondary-btn', onClick: () => gal.click() },
+      h('span', { class: 'btn-ico' }, '🖼️'),
+      h('span', {}, galLabel)),
     cam, gal);
 }
 
