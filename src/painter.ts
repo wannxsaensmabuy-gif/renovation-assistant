@@ -54,7 +54,9 @@ export function painterScreen(project?: Project): Screen {
 
   // ---------- STEP 2 : choose area ----------
   function stepSelect() {
-    const cv = h('canvas') as HTMLCanvasElement;
+    const cv = h('canvas', {
+      style: { width: '100%', height: 'auto', aspectRatio: `${W} / ${H}`, display: 'block' },
+    }) as HTMLCanvasElement;
     cv.width = W; cv.height = H;
     const ctx = cv.getContext('2d')!;
     let raf = 0;
@@ -164,7 +166,9 @@ export function painterScreen(project?: Project): Screen {
 
   // ---------- STEP 3 : pick color ----------
   function stepColor() {
-    const cv = h('canvas') as HTMLCanvasElement;
+    const cv = h('canvas', {
+      style: { width: '100%', height: '100%', objectFit: 'contain', display: 'block' },
+    }) as HTMLCanvasElement;
     cv.width = W; cv.height = H;
     const ctx = cv.getContext('2d')!;
     const preview = () => {

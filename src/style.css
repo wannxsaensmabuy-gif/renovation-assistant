@@ -25,8 +25,8 @@ html, body { margin: 0; height: 100%; background: #f4f1ec; color: #2b2622;
 .big-card span.ico { font-size: 44px; }
 .big-card small { display: block; font-size: 14px; font-weight: 400; opacity: .9; }
 .row { display: flex; gap: 10px; }
-.canvas-wrap { position: relative; width: 100%; border-radius: 14px; overflow: hidden; background: #ddd; touch-action: none; }
-.canvas-wrap canvas { width: 100%; display: block; touch-action: none; }
+.canvas-wrap { position: relative; width: 100%; flex: none; border-radius: 14px; overflow: hidden; background: #ddd; touch-action: none; }
+.canvas-wrap canvas { width: 100%; height: auto; display: block; touch-action: none; }
 .seg { display: flex; background: #f0ebe4; border-radius: 14px; padding: 4px; flex: 3; }
 .seg button { flex: 1; border: 0; background: transparent; min-height: 48px; border-radius: 11px; font-size: 15px; font-weight: 700; }
 .seg button.on { background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.18); color: #e0642b; }
@@ -38,8 +38,8 @@ html, body { margin: 0; height: 100%; background: #f4f1ec; color: #2b2622;
 .swatch span.n { display: block; padding: 6px 2px 8px; }
 .swatch.on { border-color: #e0642b; }
 .photo-pick { display: flex; flex-direction: column; gap: 14px; justify-content: center; flex: 1; }
-.compare { position: relative; width: 100%; touch-action: none; user-select: none; border-radius: 14px; overflow: hidden; background: #ddd; }
-.compare img { width: 100%; display: block; pointer-events: none; }
+.compare { position: relative; width: 100%; flex: none; touch-action: none; user-select: none; border-radius: 14px; overflow: hidden; background: #ddd; }
+.compare img { width: 100%; height: auto; display: block; pointer-events: none; }
 .compare .after { position: absolute; inset: 0; }
 .compare .bar { position: absolute; top: 0; bottom: 0; width: 4px; background: #fff; box-shadow: 0 0 6px rgba(0,0,0,.5); transform: translateX(-2px); }
 .compare .knob { position: absolute; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%;
