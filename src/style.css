@@ -18,6 +18,8 @@ html, body {
   font-family: 'Prompt', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
 }
 
 #app {
@@ -30,6 +32,7 @@ html, body {
   display: flex;
   flex-direction: column;
   box-shadow: 0 0 32px rgba(0, 0, 0, 0.08);
+  overscroll-behavior: none;
 }
 
 .screen {
@@ -38,6 +41,7 @@ html, body {
   flex-direction: column;
   background: #faf8f5;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 /* ==========================================================================
@@ -418,20 +422,116 @@ html, body {
 
 /* ==========================================================================
    CANVAS & SELECTION (STEP 2)
+   No page scroll, all tools at top, direct responsive canvas
    ========================================================================== */
+.step2-mode-bar {
+  padding: 4px 16px;
+  flex: none;
+  display: flex;
+}
+
+.step2-controls-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 16px 6px;
+  flex: none;
+}
+
+.size-ctrl-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.size-step-btn {
+  border: 0;
+  background: #eee8de;
+  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #4a4138;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: transform 0.1s ease;
+}
+.size-step-btn:active {
+  transform: scale(0.92);
+}
+
+.step2-undo-btn {
+  border: 0;
+  background: #eee8de;
+  border-radius: 12px;
+  padding: 0 14px;
+  height: 36px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #4a4138;
+  cursor: pointer;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: transform 0.1s ease;
+}
+.step2-undo-btn:active {
+  transform: scale(0.92);
+}
+
+.canvas-stage-container {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  padding: 4px 16px;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+.stage-floating-hint {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(28, 25, 23, 0.78);
+  color: #fff;
+  padding: 4px 14px;
+  border-radius: 14px;
+  font-size: 11.5px;
+  font-weight: 600;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  white-space: nowrap;
+  z-index: 10;
+}
+
 .canvas-wrap {
   position: relative;
-  width: 100%;
+  max-width: 100%;
+  max-height: 100%;
   flex: none;
   border-radius: 16px;
   overflow: hidden;
   background: #1c1815;
   touch-action: none;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  overscroll-behavior: none;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .canvas-wrap canvas {
   width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
   touch-action: none;
 }
@@ -441,13 +541,13 @@ html, body {
   background: #eee8de;
   border-radius: 14px;
   padding: 3px;
-  flex: 3;
+  flex: 1;
 }
 .seg button {
   flex: 1;
   border: 0;
   background: transparent;
-  min-height: 44px;
+  min-height: 42px;
   border-radius: 11px;
   font-size: 14px;
   font-weight: 700;

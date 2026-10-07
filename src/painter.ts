@@ -56,7 +56,7 @@ export function painterScreen(project?: Project): Screen {
   // ---------- STEP 2 : choose area ----------
   function stepSelect() {
     const cv = h('canvas', {
-      style: { width: '100%', height: 'auto', aspectRatio: `${W} / ${H}`, display: 'block' },
+      style: { width: '100%', height: '100%', display: 'block' },
     }) as HTMLCanvasElement;
     cv.width = W; cv.height = H;
     const ctx = cv.getContext('2d')!;
@@ -106,8 +106,8 @@ export function painterScreen(project?: Project): Screen {
 
     const updateTransform = () => {
       const r = wrap.getBoundingClientRect();
-      const stageW = r.width;
-      const stageH = stageW * H / W;
+      const stageW = r.width || 320;
+      const stageH = r.height || (stageW * H / W);
       const minX = Math.min(0, stageW - stageW * zoom);
       const minY = Math.min(0, stageH - stageH * zoom);
       panX = Math.max(minX, Math.min(0, panX));
@@ -252,6 +252,7 @@ export function painterScreen(project?: Project): Screen {
     });
 
     const onPointerEnd = (e: PointerEvent) => {
+      try { wrap.releasePointerCapture(e.pointerId); } catch {}
       pointers.delete(e.pointerId);
       if (pointers.size === 0) {
         painting = false;
@@ -264,12 +265,15 @@ export function painterScreen(project?: Project): Screen {
     };
     wrap.addEventListener('pointerup', onPointerEnd);
     wrap.addEventListener('pointercancel', onPointerEnd);
-    setTimeout(() => updateSize(), 0);
 
-    const nextBtn = h('button', { class: 'btn primary', onClick: () => { step = 3; render(); } }, 'ถัดไป →') as HTMLButtonElement;
-    const modeBtns = (['tap', 'add', 'erase'] as const).map((m) => h('button', {
-      class: mode === m ? 'on' : '', onClick: () => { mode = m; modeBtns.forEach((b, i) => b.classList.toggle('on', (['tap', 'add', 'erase'] as const)[i] === m)); updateSize(m !== 'tap'); },
-    }, m === 'tap' ? '👆 แตะเลือก' : m === 'add' ? '🖌️ ระบายเพิ่ม' : '🧽 ลบออก'));
+    // Prevent iOS WebKit in-app browser from interpreting touches as pull-to-close modal
+    const preventSheetDismiss = (e: TouchEvent) => {
+      e.preventDefault();
+    };
+    wrap.addEventListener('touchstart', preventSheetDismiss, { passive: false });
+    wrap.addEventListener('touchmove', preventSheetDismiss, { passive: false });
+
+    setTimeout(() => updateSize(), 0);
 
     const regrow = () => { if (last) { current = last.before.slice(); unionInto(current, growFrom(base, last.x, last.y, tol)); sched(); refresh(); } };
     const bigger = () => {
@@ -287,21 +291,66 @@ export function painterScreen(project?: Project): Screen {
       else if (areas.length) { areas.pop(); committed = bake(areas); toast('ยกเลิกจุดล่าสุดแล้ว'); }
       sched(); refresh();
     };
+
+    const leaveStep2 = (next: () => void) => {
+      window.removeEventListener('resize', resizeWrap);
+      next();
+    };
+
+    const nextBtn = h('button', {
+      class: 'btn primary',
+      onClick: () => leaveStep2(() => { step = 3; render(); }),
+    }, 'ถัดไป: เลือกสี →') as HTMLButtonElement;
     function refresh() { nextBtn.disabled = maskCount(current) === 0; }
 
-    root.append(
-      ...header('เลือกจุดที่จะทาสี', 2, async () => { if (resultBlob || areas.length) { await finish(); step = 4; } else step = 1; render(); }),
-      h('div', { class: 'hint' }, '2 แตะที่ผนัง รั้ว หรือเสา'),
-      h('div', { class: 'content' },
-        wrap,
-        h('div', { class: 'row' }, h('div', { class: 'seg' }, modeBtns)),
+    const modeBtns = (['tap', 'add', 'erase'] as const).map((m) => h('button', {
+      class: mode === m ? 'on' : '', onClick: () => {
+        mode = m;
+        modeBtns.forEach((b, i) => b.classList.toggle('on', (['tap', 'add', 'erase'] as const)[i] === m));
+        updateSize(m !== 'tap');
+      },
+    }, m === 'tap' ? '👆 แตะเลือกผนัง' : m === 'add' ? '🖌️ ระบายเพิ่ม' : '🧽 ลบจุดที่เกิน'));
+
+    const modeBar = h('div', { class: 'step2-mode-bar' }, h('div', { class: 'seg' }, modeBtns));
+
+    const controlsStrip = h('div', { class: 'step2-controls-strip' },
+      h('div', { class: 'size-ctrl-wrap' },
+        h('button', { class: 'size-step-btn', onClick: smaller, title: 'ลดขนาด' }, '➖'),
         sizeInfo,
-        h('div', { class: 'zoom-hint' }, '💡 ใช้ 2 นิ้วซูม/เลื่อนภาพได้ • มีแว่นขยายช่วยดูขอบขณะระบาย'),
-        h('div', { class: 'row' },
-          h('button', { class: 'tool', onClick: bigger }, '➕ กว้างขึ้น'),
-          h('button', { class: 'tool', onClick: smaller }, '➖ แคบลง'),
-          h('button', { class: 'tool', onClick: undoBtn }, '↩️ ย้อนกลับ'))),
-      h('div', { class: 'bottom' }, nextBtn));
+        h('button', { class: 'size-step-btn', onClick: bigger, title: 'เพิ่มขนาด' }, '➕')),
+      h('button', { class: 'step2-undo-btn', onClick: undoBtn }, '↩️ ย้อนกลับ'));
+
+    const floatingHint = h('div', { class: 'stage-floating-hint' }, '💡 ใช้ 2 นิ้วซูม/เลื่อนภาพได้');
+    const stageContainer = h('div', { class: 'canvas-stage-container' }, wrap, floatingHint);
+
+    const resizeWrap = () => {
+      const cw = stageContainer.clientWidth || (window.innerWidth - 32);
+      const ch = stageContainer.clientHeight || 360;
+      const aspect = W / H;
+      let fw = cw;
+      let fh = fw / aspect;
+      if (fh > ch) {
+        fh = ch;
+        fw = fh * aspect;
+      }
+      wrap.style.width = `${Math.round(fw)}px`;
+      wrap.style.height = `${Math.round(fh)}px`;
+      updateTransform();
+    };
+
+    window.addEventListener('resize', resizeWrap);
+    requestAnimationFrame(resizeWrap);
+
+    const bottomUndo = h('button', { class: 'btn', onClick: undoBtn }, '↩️ ย้อนกลับ');
+
+    root.append(
+      ...header('เลือกจุดที่จะทาสี', 2, () => leaveStep2(async () => {
+        if (resultBlob || areas.length) { await finish(); step = 4; } else step = 1; render();
+      })),
+      modeBar,
+      controlsStrip,
+      stageContainer,
+      h('div', { class: 'bottom' }, bottomUndo, nextBtn));
     draw(); refresh();
   }
 
