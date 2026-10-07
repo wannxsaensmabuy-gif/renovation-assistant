@@ -335,97 +335,126 @@ export function painterScreen(project?: Project): Screen {
     const done = h('button', { class: 'btn primary', onClick: async () => { if (commit()) { await finish(); step = 4; render(); } } }, 'ดูผลลัพธ์ →') as HTMLButtonElement;
     const sync = () => { again.disabled = done.disabled = !pendingColor; };
 
-    const pickerContainer = h('div', { class: 'content', style: { padding: '4px 16px 12px' } });
-
-    // Finish bar
-    const mattBtn = h('button', { class: 'finish-btn' + (currentFinish === 'matt' ? ' on' : ''), onClick: () => setFinish('matt') }, '⚪ ผิวด้านเรียบหรู');
-    const sheenBtn = h('button', { class: 'finish-btn' + (currentFinish === 'sheen' ? ' on' : ''), onClick: () => setFinish('sheen') }, '✨ กึ่งเงาซาติน');
+    // Finish options
+    const mattBtn = h('button', { class: 'finish-btn' + (currentFinish === 'matt' ? ' on' : ''), onClick: () => setFinish('matt') }, '⚪ ผิวด้าน');
+    const sheenBtn = h('button', { class: 'finish-btn' + (currentFinish === 'sheen' ? ' on' : ''), onClick: () => setFinish('sheen') }, '✨ กึ่งเงา');
     const setFinish = (f: 'matt' | 'sheen') => {
       currentFinish = pendingFinish = f;
       mattBtn.classList.toggle('on', f === 'matt');
       sheenBtn.classList.toggle('on', f === 'sheen');
       preview();
     };
-    const finishBar = h('div', { class: 'finish-bar' },
-      h('span', {}, 'มิติผิวสี:'),
-      h('div', { class: 'finish-options' }, mattBtn, sheenBtn));
+    const finishOptions = h('div', { class: 'finish-options' }, mattBtn, sheenBtn);
 
     // Mode toggle: Themes vs All Palette
     const themeTab = h('button', { class: 'on', onClick: () => setMode('themes') }, '🌟 สไตล์สถาปนิก');
     const paletteTab = h('button', { onClick: () => setMode('palette') }, '🎨 สีทั้งหมด');
     const modeToggle = h('div', { class: 'main-mode-toggle' }, themeTab, paletteTab);
 
+    // Category tabs bar (fixed, only visible in palette mode)
+    const categoryTabsBar = h('div', { class: 'category-tabs-bar', style: { display: 'none' } });
+
+    // Sub-bar showing section title + finish toggle
+    const subBar = h('div', { class: 'sub-bar' });
+
+    // Scrolling container for themes or palette swatches
+    const scrollContent = h('div', { class: 'content picker-scroll' });
+
     const setMode = (m: 'themes' | 'palette') => {
       viewMode = m;
-      themeTab.classList.toggle('on', m === 'themes');
-      paletteTab.classList.toggle('on', m === 'palette');
-      renderPicker();
+      renderMode();
     };
 
-    const renderPicker = () => {
-      pickerContainer.replaceChildren();
-      if (viewMode === 'themes') {
-        const list = h('div', { class: 'themes-list' });
-        ARCHITECTURAL_THEMES.forEach((thm) => {
-          const hasSelectedColor = thm.slots.some((s) => s.colorId === pendingColor);
-          const slotsRow = h('div', { class: 'theme-slots' },
-            thm.slots.map((s) => {
-              const c = colorById(s.colorId)!;
-              const isSlotActive = pendingColor === s.colorId;
-              return h('div', {
-                class: 'theme-slot' + (isSlotActive ? ' on' : ''),
-                onClick: () => {
-                  pendingColor = s.colorId;
-                  renderPicker();
-                  preview();
-                  sync();
-                },
-              },
-                h('div', { class: 'chip', style: { background: c.css } }),
-                h('span', { class: 'role' }, s.role),
-                h('span', { class: 'cname' }, c.name));
-            }));
+    const renderCategoryTabs = () => {
+      categoryTabsBar.replaceChildren(...GROUPS.map((gname) => h('button', {
+        class: 'tab' + (gname === grp ? ' on' : ''),
+        onClick: () => {
+          grp = gname;
+          renderCategoryTabs();
+          renderPaletteGrid();
+          scrollContent.scrollTop = 0;
+        },
+      }, gname)));
+    };
 
-          const card = h('div', { class: 'theme-card' + (hasSelectedColor ? ' on' : '') },
-            h('div', { class: 'theme-head' },
-              h('span', { class: 'ico' }, thm.icon),
-              h('b', {}, thm.name)),
-            h('p', { class: 'theme-desc' }, thm.desc),
-            slotsRow);
-          list.append(card);
-        });
-        pickerContainer.append(list);
-      } else {
-        const tabs = h('div', { class: 'strip tabs' });
-        const grid = h('div', { class: 'palette' });
-        const renderPaletteGrid = () => {
-          tabs.replaceChildren(...GROUPS.map((gname) => h('button', {
-            class: 'tab' + (gname === grp ? ' on' : ''),
-            onClick: () => { grp = gname; renderPaletteGrid(); },
-          }, gname)));
-          grid.replaceChildren(...PALETTE.filter((c) => c.group === grp).map((c) => h('button', {
-            class: 'swatch' + (pendingColor === c.id ? ' on' : ''),
-            onClick: () => {
-              pendingColor = c.id;
-              renderPaletteGrid();
-              preview();
-              sync();
+    const themesList = h('div', { class: 'themes-list' });
+    const renderThemesList = () => {
+      themesList.replaceChildren();
+      ARCHITECTURAL_THEMES.forEach((thm) => {
+        const hasSelectedColor = thm.slots.some((s) => s.colorId === pendingColor);
+        const slotsRow = h('div', { class: 'theme-slots' },
+          thm.slots.map((s) => {
+            const c = colorById(s.colorId)!;
+            const isSlotActive = pendingColor === s.colorId;
+            return h('div', {
+              class: 'theme-slot' + (isSlotActive ? ' on' : ''),
+              onClick: () => {
+                pendingColor = s.colorId;
+                grp = c.group;
+                renderThemesList();
+                preview();
+                sync();
+              },
             },
-          }, h('span', { class: 'chip', style: { background: c.css } }), h('span', { class: 'n' }, c.name))));
-        };
+              h('div', { class: 'chip', style: { background: c.css } }),
+              h('span', { class: 'role' }, s.role),
+              h('span', { class: 'cname' }, c.name));
+          }));
+
+        const card = h('div', { class: 'theme-card' + (hasSelectedColor ? ' on' : '') },
+          h('div', { class: 'theme-head' },
+            h('span', { class: 'ico' }, thm.icon),
+            h('b', {}, thm.name)),
+          h('p', { class: 'theme-desc' }, thm.desc),
+          slotsRow);
+        themesList.append(card);
+      });
+    };
+
+    const paletteGrid = h('div', { class: 'palette' });
+    const renderPaletteGrid = () => {
+      paletteGrid.replaceChildren(...PALETTE.filter((c) => c.group === grp).map((c) => h('button', {
+        class: 'swatch' + (pendingColor === c.id ? ' on' : ''),
+        onClick: () => {
+          pendingColor = c.id;
+          renderPaletteGrid();
+          preview();
+          sync();
+        },
+      }, h('span', { class: 'chip', style: { background: c.css } }), h('span', { class: 'n' }, c.name))));
+    };
+
+    const renderMode = () => {
+      themeTab.classList.toggle('on', viewMode === 'themes');
+      paletteTab.classList.toggle('on', viewMode === 'palette');
+
+      if (viewMode === 'themes') {
+        categoryTabsBar.style.display = 'none';
+        subBar.replaceChildren(
+          h('span', { class: 'sub-title' }, '🏡 ธีมคู่สี 60-30-10'),
+          h('div', { class: 'finish-wrap' }, h('span', {}, 'มิติ:'), finishOptions));
+        renderThemesList();
+        scrollContent.replaceChildren(themesList);
+      } else {
+        categoryTabsBar.style.display = 'flex';
+        renderCategoryTabs();
+        subBar.replaceChildren(
+          h('span', { class: 'sub-title' }, `หมวด${grp}`),
+          h('div', { class: 'finish-wrap' }, h('span', {}, 'มิติ:'), finishOptions));
         renderPaletteGrid();
-        pickerContainer.append(tabs, grid);
+        scrollContent.replaceChildren(paletteGrid);
       }
     };
 
-    renderPicker();
+    renderMode();
 
     root.append(
       ...header('เลือกสี', 3, () => { step = 2; render(); }),
       h('div', { class: 'preview-fix' }, h('canvas-holder', {}, cv)),
-      finishBar,
       modeToggle,
-      pickerContainer,
+      categoryTabsBar,
+      subBar,
+      scrollContent,
       h('div', { class: 'bottom' }, again, done));
     preview(); sync();
   }
