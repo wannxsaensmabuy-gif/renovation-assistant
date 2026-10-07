@@ -79,12 +79,95 @@ export function painterScreen(project?: Project): Screen {
     const sizeTxt = h('span', {});
     const sizeInfo = h('div', { class: 'size-info' }, dot, sizeTxt);
     let ringTimer = 0;
-    /** diameter of the brush in on-screen pixels */
-    const ringPx = () => Math.max(6, 2 * R() * cv.getBoundingClientRect().width / W);
+
+    // Zoom & Pan state
+    let zoom = 1.0;
+    let panX = 0;
+    let panY = 0;
+    let startDist = 0;
+    let startZoom = 1.0;
+    let startMid = { x: 0, y: 0 };
+    let startPan = { x: 0, y: 0 };
+    const pointers = new Map<number, { clientX: number; clientY: number }>();
+
+    const zoomStage = h('div', { class: 'zoom-stage' }, cv, ring);
+    const resetZoomBtn = h('button', {
+      class: 'zoom-reset-btn',
+      onClick: () => resetZoom(),
+    }, '🔍 1.0x · รีเซ็ต');
+
+    const loupe = h('div', { class: 'loupe' });
+    const loupeCv = h('canvas', { width: 120, height: 120 }) as HTMLCanvasElement;
+    const loupeCtx = loupeCv.getContext('2d')!;
+    loupe.append(loupeCv);
+
+    const wrap = h('div', { class: 'canvas-wrap' }, zoomStage, loupe, resetZoomBtn);
+
+    const updateTransform = () => {
+      const r = wrap.getBoundingClientRect();
+      const stageW = r.width;
+      const stageH = stageW * H / W;
+      const minX = Math.min(0, stageW - stageW * zoom);
+      const minY = Math.min(0, stageH - stageH * zoom);
+      panX = Math.max(minX, Math.min(0, panX));
+      panY = Math.max(minY, Math.min(0, panY));
+
+      zoomStage.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+      if (zoom > 1.05) {
+        resetZoomBtn.style.display = 'block';
+        resetZoomBtn.textContent = `🔍 ${zoom.toFixed(1)}x · แตะรีเซ็ต`;
+      } else {
+        resetZoomBtn.style.display = 'none';
+      }
+    };
+
+    const resetZoom = () => {
+      zoom = 1.0; panX = 0; panY = 0;
+      updateTransform();
+    };
+
+    const updateLoupe = (clientX: number, clientY: number, imgX: number, imgY: number) => {
+      const wrapRect = wrap.getBoundingClientRect();
+      let lx = clientX - wrapRect.left - 55;
+      let ly = clientY - wrapRect.top - 125;
+      if (ly < 10) ly = clientY - wrapRect.top + 45;
+      lx = Math.max(8, Math.min(wrapRect.width - 118, lx));
+      loupe.style.left = `${lx}px`;
+      loupe.style.top = `${ly}px`;
+      loupe.style.display = 'block';
+
+      const winW = Math.max(24, Math.round(W * 0.14));
+      const winH = Math.max(24, Math.round(H * 0.14));
+      loupeCtx.clearRect(0, 0, 120, 120);
+      loupeCtx.drawImage(cv, imgX - winW / 2, imgY - winH / 2, winW, winH, 0, 0, 120, 120);
+
+      if (mode === 'add' || mode === 'erase') {
+        const brushRInLoupe = (R() / winW) * 120;
+        loupeCtx.beginPath();
+        loupeCtx.arc(60, 60, Math.max(4, brushRInLoupe), 0, Math.PI * 2);
+        loupeCtx.strokeStyle = mode === 'add' ? '#e0642b' : '#b42318';
+        loupeCtx.lineWidth = 2.5;
+        loupeCtx.stroke();
+      } else {
+        loupeCtx.beginPath();
+        loupeCtx.arc(60, 60, 5, 0, Math.PI * 2);
+        loupeCtx.fillStyle = '#e0642b';
+        loupeCtx.fill();
+      }
+      loupeCtx.fillStyle = '#ffffff';
+      loupeCtx.fillRect(59, 59, 2, 2);
+    };
+
+    const hideLoupe = () => {
+      loupe.style.display = 'none';
+    };
+
+    const ringPx = () => Math.max(6, 2 * R() * cv.getBoundingClientRect().width / (W * zoom));
     const placeRing = (cx: number, cy: number) => {
       const d = ringPx(); ring.style.width = ring.style.height = d + 'px';
       ring.style.left = cx - d / 2 + 'px'; ring.style.top = cy - d / 2 + 'px'; ring.style.display = 'block';
     };
+
     const updateSize = (flash = false) => {
       if (mode === 'tap') {
         const lv = Math.round((tol - 14) / 12) + 1;
@@ -97,33 +180,89 @@ export function painterScreen(project?: Project): Screen {
       sizeTxt.textContent = `ขนาดแปรง: ระดับ ${bIdx + 1}/${BR.length}`;
       if (flash) {
         const r = cv.getBoundingClientRect();
-        placeRing(r.width / 2, r.height / 2);
+        placeRing((r.width / zoom) / 2, (r.height / zoom) / 2);
         clearTimeout(ringTimer); ringTimer = window.setTimeout(() => (ring.style.display = 'none'), 1600);
       }
     };
+
     let painting = false;
-    const local = (e: PointerEvent) => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-    cv.addEventListener('pointerdown', (e) => {
-      cv.setPointerCapture(e.pointerId);
-      const { x, y } = pos(e);
-      undo.push(current.slice()); if (undo.length > 30) undo.shift();
-      if (mode === 'tap') {
-        last = { x, y, before: current.slice() };
-        const g = growFrom(base, x, y, tol);
-        unionInto(current, g);
-      } else {
-        painting = true; paintDisc(current, W, H, x, y, R(), mode === 'add' ? 1 : 0);
-        clearTimeout(ringTimer); const l = local(e); placeRing(l.x, l.y);
+    const local = (e: PointerEvent) => {
+      const r = cv.getBoundingClientRect();
+      return { x: (e.clientX - r.left) / zoom, y: (e.clientY - r.top) / zoom };
+    };
+
+    wrap.addEventListener('pointerdown', (e) => {
+      pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+      wrap.setPointerCapture(e.pointerId);
+
+      if (pointers.size >= 2) {
+        painting = false;
+        hideLoupe();
+        ring.style.display = 'none';
+        const [p1, p2] = Array.from(pointers.values());
+        startDist = Math.hypot(p1.clientX - p2.clientX, p1.clientY - p2.clientY);
+        startZoom = zoom;
+        startMid = { x: (p1.clientX + p2.clientX) / 2, y: (p1.clientY + p2.clientY) / 2 };
+        startPan = { x: panX, y: panY };
+        return;
       }
-      sched(); refresh();
+
+      if (pointers.size === 1) {
+        const { x, y } = pos(e);
+        undo.push(current.slice()); if (undo.length > 30) undo.shift();
+        if (mode === 'tap') {
+          last = { x, y, before: current.slice() };
+          const g = growFrom(base, x, y, tol);
+          unionInto(current, g);
+        } else {
+          painting = true;
+          paintDisc(current, W, H, x, y, R(), mode === 'add' ? 1 : 0);
+          clearTimeout(ringTimer); const l = local(e); placeRing(l.x, l.y);
+        }
+        updateLoupe(e.clientX, e.clientY, x, y);
+        sched(); refresh();
+      }
     });
-    cv.addEventListener('pointermove', (e) => {
-      if (!painting) return;
-      const { x, y } = pos(e); paintDisc(current, W, H, x, y, R(), mode === 'add' ? 1 : 0); sched();
-      const l = local(e); placeRing(l.x, l.y);
+
+    wrap.addEventListener('pointermove', (e) => {
+      if (!pointers.has(e.pointerId)) return;
+      pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+
+      if (pointers.size >= 2) {
+        const [p1, p2] = Array.from(pointers.values());
+        const dist = Math.hypot(p1.clientX - p2.clientX, p1.clientY - p2.clientY);
+        if (startDist > 0) {
+          zoom = Math.min(3.5, Math.max(1.0, startZoom * (dist / startDist)));
+          const currentMid = { x: (p1.clientX + p2.clientX) / 2, y: (p1.clientY + p2.clientY) / 2 };
+          panX = startPan.x + (currentMid.x - startMid.x);
+          panY = startPan.y + (currentMid.y - startMid.y);
+          updateTransform();
+        }
+        return;
+      }
+
+      if (painting) {
+        const { x, y } = pos(e);
+        paintDisc(current, W, H, x, y, R(), mode === 'add' ? 1 : 0);
+        sched();
+        const l = local(e); placeRing(l.x, l.y);
+        updateLoupe(e.clientX, e.clientY, x, y);
+      }
     });
-    const end = () => { painting = false; ringTimer = window.setTimeout(() => (ring.style.display = 'none'), 500); refresh(); };
-    cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+
+    const onPointerEnd = (e: PointerEvent) => {
+      pointers.delete(e.pointerId);
+      if (pointers.size === 0) {
+        painting = false;
+        hideLoupe();
+        ringTimer = window.setTimeout(() => (ring.style.display = 'none'), 400);
+        refresh();
+      } else if (pointers.size === 1) {
+        startDist = 0;
+      }
+    };
+    wrap.addEventListener('pointerup', onPointerEnd);
+    wrap.addEventListener('pointercancel', onPointerEnd);
     setTimeout(() => updateSize(), 0);
 
     const nextBtn = h('button', { class: 'btn primary', onClick: () => { step = 3; render(); } }, 'ถัดไป →') as HTMLButtonElement;
@@ -153,9 +292,10 @@ export function painterScreen(project?: Project): Screen {
       ...header('เลือกจุดที่จะทาสี', 2, async () => { if (resultBlob || areas.length) { await finish(); step = 4; } else step = 1; render(); }),
       h('div', { class: 'hint' }, '2 แตะที่ผนัง รั้ว หรือเสา'),
       h('div', { class: 'content' },
-        h('div', { class: 'canvas-wrap' }, cv, ring),
+        wrap,
         h('div', { class: 'row' }, h('div', { class: 'seg' }, modeBtns)),
         sizeInfo,
+        h('div', { class: 'zoom-hint' }, '💡 ใช้ 2 นิ้วซูม/เลื่อนภาพได้ • มีแว่นขยายช่วยดูขอบขณะระบาย'),
         h('div', { class: 'row' },
           h('button', { class: 'tool', onClick: bigger }, '➕ กว้างขึ้น'),
           h('button', { class: 'tool', onClick: smaller }, '➖ แคบลง'),
